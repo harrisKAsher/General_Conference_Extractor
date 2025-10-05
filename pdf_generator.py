@@ -52,9 +52,74 @@ class ConferencePDFGenerator:
     def __init__(self, conference_data: Dict):
         self.conference_data = conference_data
         self.styles = getSampleStyleSheet()
+        self._register_unicode_fonts()
         self._setup_custom_styles()
         self.image_cache = {}  # Cache downloaded images
         self.conference_date = self._extract_conference_date()
+
+    def _register_unicode_fonts(self):
+        """Register Unicode-compatible fonts for supporting non-Latin characters"""
+        try:
+            # Try to register DejaVu Sans fonts (commonly available on most systems)
+            # These fonts support a wide range of Unicode characters including Hebrew, Greek, etc.
+
+            # Try common font paths for different operating systems
+            font_paths = [
+                # macOS
+                '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+                '/Library/Fonts/Arial Unicode.ttf',
+                # Linux
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf',
+                # Windows
+                'C:\\Windows\\Fonts\\Arial.ttf',
+                'C:\\Windows\\Fonts\\Arialbd.ttf',
+            ]
+
+            # Try to register fonts
+            fonts_registered = False
+
+            # Try DejaVu Sans (Linux)
+            try:
+                pdfmetrics.registerFont(TTFont('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
+                pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'))
+                pdfmetrics.registerFont(TTFont('DejaVuSerif', '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf'))
+                pdfmetrics.registerFont(TTFont('DejaVuSerif-Italic', '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf'))
+                self.font_regular = 'DejaVuSerif'
+                self.font_bold = 'DejaVuSans-Bold'
+                self.font_italic = 'DejaVuSerif-Italic'
+                fonts_registered = True
+                print("Using DejaVu fonts for Unicode support")
+            except:
+                pass
+
+            # Try Arial Unicode (macOS)
+            if not fonts_registered:
+                try:
+                    pdfmetrics.registerFont(TTFont('ArialUnicode', '/System/Library/Fonts/Supplemental/Arial Unicode.ttf'))
+                    self.font_regular = 'ArialUnicode'
+                    self.font_bold = 'ArialUnicode'
+                    self.font_italic = 'ArialUnicode'
+                    fonts_registered = True
+                    print("Using Arial Unicode font for Unicode support")
+                except:
+                    pass
+
+            # Fallback to standard fonts (won't support all Unicode)
+            if not fonts_registered:
+                print("Warning: Could not load Unicode fonts. Non-Latin characters may not display correctly.")
+                self.font_regular = 'Times-Roman'
+                self.font_bold = 'Helvetica-Bold'
+                self.font_italic = 'Times-Italic'
+
+        except Exception as e:
+            print(f"Warning: Error registering fonts: {e}")
+            # Fallback to standard fonts
+            self.font_regular = 'Times-Roman'
+            self.font_bold = 'Helvetica-Bold'
+            self.font_italic = 'Times-Italic'
 
     def _extract_conference_date(self) -> str:
         """Extract conference date from conference title (e.g., 'April 2025')"""
@@ -84,7 +149,7 @@ class ConferencePDFGenerator:
 
     def _setup_custom_styles(self):
         """Setup custom paragraph styles for the PDF"""
-        
+
         # Title style for conference title
         self.styles.add(ParagraphStyle(
             name='ConferenceTitle',
@@ -93,9 +158,9 @@ class ConferencePDFGenerator:
             textColor=colors.HexColor('#003366'),
             spaceAfter=30,
             alignment=TA_CENTER,
-            fontName='Helvetica-Bold'
+            fontName=self.font_bold
         ))
-        
+
         # Talk title style - larger and bolder
         self.styles.add(ParagraphStyle(
             name='TalkTitle',
@@ -105,7 +170,7 @@ class ConferencePDFGenerator:
             spaceAfter=8,
             spaceBefore=0,
             alignment=TA_LEFT,
-            fontName='Helvetica-Bold'
+            fontName=self.font_bold
         ))
 
         # Speaker name style - with "By" prefix
@@ -116,7 +181,7 @@ class ConferencePDFGenerator:
             textColor=colors.black,
             spaceAfter=2,
             alignment=TA_LEFT,
-            fontName='Helvetica-Bold'
+            fontName=self.font_bold
         ))
 
         # Author role/title style
@@ -127,7 +192,7 @@ class ConferencePDFGenerator:
             textColor=colors.black,
             spaceAfter=2,
             alignment=TA_LEFT,
-            fontName='Times-Italic'
+            fontName=self.font_italic
         ))
 
         # Conference date style
@@ -138,7 +203,7 @@ class ConferencePDFGenerator:
             textColor=colors.HexColor('#5A7FA5'),
             spaceAfter=0,
             alignment=TA_LEFT,
-            fontName='Helvetica'
+            fontName=self.font_regular
         ))
 
         # Highlight/Lead paragraph style - first paragraph of talk
@@ -150,7 +215,7 @@ class ConferencePDFGenerator:
             textColor=colors.HexColor('#486581'),
             alignment=TA_JUSTIFY,
             spaceAfter=10,
-            fontName='Times-Italic'
+            fontName=self.font_italic
         ))
 
         # Body text style
@@ -161,9 +226,9 @@ class ConferencePDFGenerator:
             leading=12,
             alignment=TA_JUSTIFY,
             spaceAfter=5,
-            fontName='Times-Roman'
+            fontName=self.font_regular
         ))
-        
+
         # Session header style
         self.styles.add(ParagraphStyle(
             name='SessionHeader',
@@ -173,7 +238,7 @@ class ConferencePDFGenerator:
             spaceAfter=12,
             spaceBefore=20,
             alignment=TA_LEFT,
-            fontName='Helvetica-Bold'
+            fontName=self.font_bold
         ))
 
         # Footnote title style
@@ -185,7 +250,7 @@ class ConferencePDFGenerator:
             spaceAfter=8,
             spaceBefore=0,
             alignment=TA_LEFT,
-            fontName='Helvetica-Bold'
+            fontName=self.font_bold
         ))
 
         # Footnote text style
@@ -197,7 +262,7 @@ class ConferencePDFGenerator:
             alignment=TA_LEFT,
             spaceAfter=6,
             leftIndent=8,
-            fontName='Times-Roman'
+            fontName=self.font_regular
         ))
         
     def _create_cover_page(self, story: List):
@@ -212,7 +277,7 @@ class ConferencePDFGenerator:
             fontSize=36,
             alignment=TA_CENTER,
             textColor=colors.HexColor('#003366'),
-            fontName='Helvetica-Bold',
+            fontName=self.font_bold,
             spaceAfter=36
         )
         title = Paragraph("General Conference", title_style)
@@ -226,7 +291,7 @@ class ConferencePDFGenerator:
                 fontSize=24,
                 alignment=TA_CENTER,
                 textColor=colors.HexColor('#003366'),
-                fontName='Helvetica'
+                fontName=self.font_regular
             )
             date_text = Paragraph(self.conference_date, date_style)
             story.append(date_text)
@@ -241,7 +306,7 @@ class ConferencePDFGenerator:
             fontSize=8,
             alignment=TA_CENTER,
             textColor=colors.HexColor('#E0E0E0'),  # Very light gray
-            fontName='Helvetica'
+            fontName=self.font_regular
         )
         disclaimer = Paragraph("This is not an official church production", disclaimer_style)
         story.append(disclaimer)
@@ -265,7 +330,7 @@ class ConferencePDFGenerator:
             fontSize=28,
             textColor=colors.HexColor('#003366'),
             alignment=TA_CENTER,
-            fontName='Helvetica-Bold',
+            fontName=self.font_bold,
             spaceAfter=12
         )
 
@@ -281,7 +346,7 @@ class ConferencePDFGenerator:
                 fontSize=16,
                 alignment=TA_CENTER,
                 textColor=colors.HexColor('#5A7FA5'),
-                fontName='Helvetica'
+                fontName=self.font_regular
             )
             date_text = Paragraph(self.conference_date, session_date_style)
             story.append(date_text)
@@ -580,7 +645,7 @@ class ConferencePDFGenerator:
                                 alignment=TA_CENTER,
                                 spaceAfter=6,
                                 spaceBefore=3,
-                                fontName='Times-Italic'
+                                fontName=self.font_italic
                             )
                             caption_para = Paragraph(self._clean_text_for_pdf(caption), caption_style)
                             story.append(caption_para)
