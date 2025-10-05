@@ -243,12 +243,26 @@ class ConferencePDFGenerator:
             fontSize=28,
             textColor=colors.HexColor('#003366'),
             alignment=TA_CENTER,
-            fontName='Helvetica-Bold'
+            fontName='Helvetica-Bold',
+            spaceAfter=12
         )
 
         # Session title
         title = Paragraph(session_name, session_title_style)
         story.append(title)
+
+        # Conference date below session title
+        if self.conference_date:
+            session_date_style = ParagraphStyle(
+                name='SessionDate',
+                parent=self.styles['Normal'],
+                fontSize=16,
+                alignment=TA_CENTER,
+                textColor=colors.HexColor('#5A7FA5'),
+                fontName='Helvetica'
+            )
+            date_text = Paragraph(self.conference_date, session_date_style)
+            story.append(date_text)
 
         # Page break after session header
         story.append(PageBreak())
