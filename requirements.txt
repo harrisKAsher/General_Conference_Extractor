@@ -3,6 +3,9 @@
 # PDF Generation
 reportlab>=4.0.0
 
+# Image Processing (required for embedding images in PDFs)
+Pillow>=10.0.0
+
 # Web Scraping (optional - using built-in urllib for now)
 # beautifulsoup4>=4.12.0
 # requests>=2.31.0

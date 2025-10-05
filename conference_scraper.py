@@ -21,19 +21,20 @@ from typing import List, Dict, Optional
 from datetime import datetime
 
 
-class HTMLTextExtractor(HTMLParser):
-    """Extract text content from HTML while preserving some structure"""
-    
+class HTMLContentExtractor(HTMLParser):
+    """Extract text content and images from HTML while preserving structure"""
+
     def __init__(self):
         super().__init__()
         self.reset()
         self.strict = False
         self.convert_charrefs = True
-        self.text_parts = []
+        self.content_parts = []  # List of tuples: ('text', content) or ('image', image_info)
+        self.current_text = []
         self.in_paragraph = False
         self.in_header = False
         self.in_emphasis = False
-        
+
     def handle_starttag(self, tag, attrs):
         if tag == 'p':
             self.in_paragraph = True
@@ -42,24 +43,49 @@ class HTMLTextExtractor(HTMLParser):
         elif tag in ['em', 'i', 'strong', 'b']:
             self.in_emphasis = True
         elif tag == 'br':
-            self.text_parts.append('\n')
-            
+            self.current_text.append('\n')
+        elif tag == 'img':
+            # Save any accumulated text first
+            if self.current_text:
+                text = ''.join(self.current_text).strip()
+                if text:
+                    self.content_parts.append(('text', text))
+                self.current_text = []
+
+            # Extract image information
+            attrs_dict = dict(attrs)
+            image_info = {
+                'src': attrs_dict.get('src', ''),
+                'alt': attrs_dict.get('alt', ''),
+                'data-public-title': attrs_dict.get('data-public-title', ''),
+                'data-public-description': attrs_dict.get('data-public-description', ''),
+                'data-width': attrs_dict.get('data-width', ''),
+                'data-height': attrs_dict.get('data-height', '')
+            }
+            self.content_parts.append(('image', image_info))
+
     def handle_endtag(self, tag):
         if tag == 'p':
             self.in_paragraph = False
-            self.text_parts.append('\n\n')
+            self.current_text.append('\n\n')
         elif tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
             self.in_header = False
-            self.text_parts.append('\n\n')
+            self.current_text.append('\n\n')
         elif tag in ['em', 'i', 'strong', 'b']:
             self.in_emphasis = False
-            
+
     def handle_data(self, data):
         if data.strip():
-            self.text_parts.append(data)
-            
-    def get_text(self):
-        return ''.join(self.text_parts).strip()
+            self.current_text.append(data)
+
+    def get_content(self):
+        """Return list of content parts (text and images)"""
+        # Add any remaining text
+        if self.current_text:
+            text = ''.join(self.current_text).strip()
+            if text:
+                self.content_parts.append(('text', text))
+        return self.content_parts
 
 
 class ConferenceScraper:
@@ -164,11 +190,39 @@ class ConferenceScraper:
             print(f"  Error fetching {talk_url}: {e}")
             return None
             
-    def extract_text_from_html(self, html: str) -> str:
-        """Extract clean text from HTML content"""
-        extractor = HTMLTextExtractor()
+    def extract_content_from_html(self, html: str) -> Dict:
+        """Extract text and images from HTML content"""
+        extractor = HTMLContentExtractor()
         extractor.feed(html)
-        return extractor.get_text()
+        content_parts = extractor.get_content()
+
+        # Build structured content with images at their proper positions
+        structured_content = []
+
+        for content_type, content in content_parts:
+            if content_type == 'text':
+                structured_content.append({
+                    'type': 'text',
+                    'content': content
+                })
+            elif content_type == 'image':
+                structured_content.append({
+                    'type': 'image',
+                    'url': content['src'],
+                    'alt': content['alt'],
+                    'title': content['data-public-title'],
+                    'description': content['data-public-description'],
+                    'width': content['data-width'],
+                    'height': content['data-height']
+                })
+
+        # For backward compatibility, also provide text-only version
+        text_parts = [item['content'] for item in structured_content if item['type'] == 'text']
+
+        return {
+            'text': '\n\n'.join(text_parts),
+            'structured_content': structured_content
+        }
         
     def scrape_all_talks(self) -> List[Dict]:
         """Scrape all talks from the conference"""
@@ -191,15 +245,22 @@ class ConferenceScraper:
         talks = []
         for i, talk_info in enumerate(talk_links, 1):
             print(f"\n[{i}/{len(talk_links)}] {talk_info['speaker']}: {talk_info['title']}")
-            
+
             talk_data = self.fetch_talk_content(talk_info['url'])
             if talk_data:
-                # Extract text content
+                # Extract text content and images
                 body_html = talk_data['content']['body']
-                text_content = self.extract_text_from_html(body_html)
-                
-                talk_info['content'] = text_content
+                content_data = self.extract_content_from_html(body_html)
+
+                talk_info['content'] = content_data['text']
+                talk_info['structured_content'] = content_data['structured_content']
                 talk_info['full_data'] = talk_data
+
+                # Count images
+                image_count = sum(1 for item in content_data['structured_content'] if item['type'] == 'image')
+                if image_count > 0:
+                    print(f"  Found {image_count} image(s)")
+
                 talks.append(talk_info)
                 
         return {

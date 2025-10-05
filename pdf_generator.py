@@ -9,24 +9,28 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import json
 import sys
 import re
+import urllib.request
+import io
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
+from PIL import Image as PILImage
 
 
 class ConferencePDFGenerator:
     """Generates formatted PDF from conference data"""
-    
+
     def __init__(self, conference_data: Dict):
         self.conference_data = conference_data
         self.styles = getSampleStyleSheet()
         self._setup_custom_styles()
+        self.image_cache = {}  # Cache downloaded images
         
     def _setup_custom_styles(self):
         """Setup custom paragraph styles for the PDF"""
@@ -216,7 +220,7 @@ class ConferencePDFGenerator:
         """Split text into paragraphs"""
         # Split by double newlines
         paragraphs = text.split('\n\n')
-        
+
         # Clean up each paragraph
         cleaned = []
         for para in paragraphs:
@@ -227,34 +231,133 @@ class ConferencePDFGenerator:
                 # Remove extra spaces
                 para = ' '.join(para.split())
                 cleaned.append(para)
-                
+
         return cleaned
+
+    def _download_image(self, url: str) -> Optional[io.BytesIO]:
+        """Download an image from a URL and return as BytesIO"""
+        if url in self.image_cache:
+            return self.image_cache[url]
+
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+            }
+            req = urllib.request.Request(url, headers=headers)
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                image_data = response.read()
+                image_buffer = io.BytesIO(image_data)
+                self.image_cache[url] = image_buffer
+                return image_buffer
+        except Exception as e:
+            print(f"    Warning: Failed to download image from {url}: {e}")
+            return None
+
+    def _create_image_flowable(self, image_info: Dict, max_width: float = 5.5*inch) -> Optional[Image]:
+        """Create a ReportLab Image flowable from image info"""
+        url = image_info.get('url', '')
+        if not url:
+            return None
+
+        # Download the image
+        image_buffer = self._download_image(url)
+        if not image_buffer:
+            return None
+
+        try:
+            # Reset buffer position
+            image_buffer.seek(0)
+
+            # Open with PIL to get dimensions
+            pil_image = PILImage.open(image_buffer)
+            img_width, img_height = pil_image.size
+
+            # Calculate scaling to fit within max_width while maintaining aspect ratio
+            if img_width > max_width:
+                scale = max_width / img_width
+                display_width = max_width
+                display_height = img_height * scale
+            else:
+                display_width = img_width
+                display_height = img_height
+
+            # Reset buffer for ReportLab
+            image_buffer.seek(0)
+
+            # Create ReportLab Image
+            img = Image(image_buffer, width=display_width, height=display_height)
+
+            return img
+        except Exception as e:
+            print(f"    Warning: Failed to process image: {e}")
+            return None
         
     def _add_talk_to_story(self, story: List, talk: Dict, talk_number: int):
         """Add a single talk to the PDF story"""
-        
+
         # Talk title
         title = talk.get('title', 'Untitled')
         title_para = Paragraph(self._clean_text_for_pdf(title), self.styles['TalkTitle'])
         story.append(title_para)
-        
+
         # Speaker name
         speaker = talk.get('speaker', 'Unknown')
         speaker_para = Paragraph(self._clean_text_for_pdf(speaker), self.styles['Speaker'])
         story.append(speaker_para)
-        
+
         story.append(Spacer(1, 0.2*inch))
-        
-        # Talk content
-        content = talk.get('content', '')
-        paragraphs = self._split_into_paragraphs(content)
-        
-        for para_text in paragraphs:
-            if para_text:
-                cleaned_text = self._clean_text_for_pdf(para_text)
-                para = Paragraph(cleaned_text, self.styles['TalkBody'])
-                story.append(para)
-                
+
+        # Check if we have structured content (with images)
+        structured_content = talk.get('structured_content', [])
+
+        if structured_content:
+            # Use structured content to preserve image positions
+            for item in structured_content:
+                if item['type'] == 'text':
+                    # Split text into paragraphs
+                    paragraphs = self._split_into_paragraphs(item['content'])
+                    for para_text in paragraphs:
+                        if para_text:
+                            cleaned_text = self._clean_text_for_pdf(para_text)
+                            para = Paragraph(cleaned_text, self.styles['TalkBody'])
+                            story.append(para)
+
+                elif item['type'] == 'image':
+                    # Add the image
+                    img_flowable = self._create_image_flowable(item)
+                    if img_flowable:
+                        story.append(Spacer(1, 0.15*inch))
+                        story.append(img_flowable)
+
+                        # Add caption if available
+                        caption = item.get('title') or item.get('alt', '')
+                        if caption:
+                            caption_style = ParagraphStyle(
+                                name='ImageCaption',
+                                parent=self.styles['Normal'],
+                                fontSize=9,
+                                textColor=colors.HexColor('#666666'),
+                                alignment=TA_CENTER,
+                                spaceAfter=6,
+                                spaceBefore=3,
+                                fontName='Helvetica-Oblique'
+                            )
+                            caption_para = Paragraph(self._clean_text_for_pdf(caption), caption_style)
+                            story.append(caption_para)
+
+                        story.append(Spacer(1, 0.15*inch))
+        else:
+            # Fallback to plain text content (for backward compatibility)
+            content = talk.get('content', '')
+            paragraphs = self._split_into_paragraphs(content)
+
+            for para_text in paragraphs:
+                if para_text:
+                    cleaned_text = self._clean_text_for_pdf(para_text)
+                    para = Paragraph(cleaned_text, self.styles['TalkBody'])
+                    story.append(para)
+
         # Page break after each talk
         story.append(PageBreak())
         

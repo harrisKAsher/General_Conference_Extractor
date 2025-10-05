@@ -6,8 +6,9 @@ A Python web scraping tool that extracts talks from Church of Jesus Christ Gener
 
 - Scrapes conference talks from churchofjesuschrist.org
 - Extracts speaker names, talk titles, and full content
+- **Includes images from talks in the PDF** (portraits, photos, artwork, etc.)
 - Generates professionally formatted PDF documents
-- Includes cover page and table of contents
+- Includes cover page and session dividers
 - Reusable for different conference years and sessions
 - Saves intermediate JSON data for debugging
 
@@ -47,10 +48,10 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Or install the package directly:
+Or install packages directly:
 
 ```bash
-pip install reportlab
+pip install reportlab Pillow
 ```
 
 ## Usage
@@ -118,12 +119,14 @@ python pdf_generator.py conference_data.json output.pdf
    - Retrieves the main conference page
    - Extracts links to individual talks
    - Fetches full content for each talk
-   - Parses HTML to extract clean text
+   - Parses HTML to extract clean text and images
+   - Downloads images from the Church's servers
 
 2. **PDF Generation**: Creates a formatted PDF using ReportLab
-   - Cover page with conference title
-   - Table of contents with all talks
+   - Session divider pages for each conference session
    - Individual pages for each talk with speaker and title
+   - Images embedded at their proper locations within talks
+   - Image captions with titles/descriptions
    - Professional formatting and styling
 
 ## Examples
@@ -204,6 +207,12 @@ For issues or questions, please check:
 4. Internet connection
 
 ## Version History
+
+- **v1.1** (2025-10-05): Image support added
+  - Images from talks are now included in PDFs
+  - Automatic image downloading and embedding
+  - Image captions with titles/descriptions
+  - Proper image positioning within talk content
 
 - **v1.0** (2025-10-05): Initial release
   - Web scraping functionality
