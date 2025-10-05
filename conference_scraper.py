@@ -81,7 +81,9 @@ class HTMLContentExtractor(HTMLParser):
         if tag == 'sup' and attrs_dict.get('class') == 'marker':
             footnote_num = attrs_dict.get('data-value', '')
             if footnote_num:
-                self.current_text.append(f'[{footnote_num}]')
+                # Use a special marker that won't be escaped
+                # We'll replace this in the PDF generator
+                self.current_text.append(f'{{{{FOOTNOTE:{footnote_num}}}}}')
             return
 
         if tag == 'p':

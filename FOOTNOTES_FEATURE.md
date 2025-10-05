@@ -6,17 +6,25 @@ Footnotes are now automatically extracted from conference talks and displayed wi
 ## What Changed
 
 ### 1. Footnote Extraction (`conference_scraper.py`)
-- **Footnote Markers in Text**: Superscript footnote markers (`<sup class="marker" data-value="1">`) are now converted to bracketed numbers like `[1]`, `[2]`, etc. in the text
+- **Footnote Markers in Text**: Superscript footnote markers (`<sup class="marker" data-value="1">`) are converted to temporary placeholders `{{FOOTNOTE:1}}`
+  - This prevents them from being escaped during text cleaning
+  - Placeholders are later replaced with styled markers in the PDF generator
 - **Footnote List**: The footnote list at the bottom of each talk is extracted with:
   - Marker number (e.g., "1.", "2.")
   - Full footnote text (with HTML tags stripped)
   - Footnote ID for reference
 
 ### 2. PDF Generation (`pdf_generator.py`)
+- **Text Cleaning with Footnote Preservation**:
+  - Footnote placeholders `{{FOOTNOTE:1}}` are protected during text cleaning
+  - After escaping special characters, placeholders are replaced with styled HTML
+  - Final format: `<super><font color="#166086" size="7">1</font></super>`
+  - Superscript position, blue color, appropriate font size (7pt)
+
 - **New Styles Added**:
   - `FootnoteTitle`: Bold heading for "Notes" section
   - `FootnoteText`: Smaller font (9pt) for footnote content with left indent
-  
+
 - **Footnote Display**: At the end of each talk, before the page break:
   - "Notes" heading is displayed
   - Each footnote shows as: **1.** Footnote text here...
@@ -26,8 +34,9 @@ Footnotes are now automatically extracted from conference talks and displayed wi
 
 ### In the Text:
 ```
-And the Savior said to him who was thankful, "Thy faith hath made thee whole."[1]
+And the Savior said to him who was thankful, "Thy faith hath made thee whole."¹
 ```
+Note: The footnote marker appears as a superscript number in blue (#166086) at the top of the line.
 
 ### In the Footnotes Section:
 ```
@@ -50,14 +59,19 @@ Conference talks on churchofjesuschrist.org use this structure:
 ### Extraction Process
 1. Regex pattern matches footnote `<li>` elements in the HTML
 2. HTML tags within footnotes are stripped using `strip_html_tags()` function
-3. Footnote markers in text are replaced with `[number]` format
+3. Footnote markers in text are replaced with temporary placeholders: `{{FOOTNOTE:1}}`
 4. Footnotes are stored in the talk data structure
 
 ### PDF Rendering
-1. Talk content is rendered with footnote markers visible as `[1]`, `[2]`, etc.
-2. After all talk content, a "Notes" section is added
-3. Each footnote is rendered with its number in bold followed by the text
-4. Footnotes use smaller font (9pt) and left indentation for readability
+1. During text cleaning, footnote placeholders are protected from escaping
+2. After cleaning, placeholders are replaced with formatted HTML:
+   - `<super><font color="#166086" size="7">1</font></super>`
+   - Superscript positioning using `<super>` tag
+   - Blue color (#166086) for visual distinction
+   - Smaller font size (7pt) appropriate for superscript
+3. After all talk content, a "Notes" section is added
+4. Each footnote is rendered with its number in bold followed by the text
+5. Footnotes use smaller font (9pt) and left indentation for readability
 
 ## Files Modified
 - `conference_scraper.py`: Added footnote extraction logic
@@ -73,6 +87,7 @@ Run these test scripts to verify footnote functionality:
 ## Benefits
 - **Complete Information**: All scripture references and notes are preserved
 - **Easy Reference**: Numbered markers make it easy to find corresponding footnotes
-- **Professional Format**: Matches the style of published conference materials
+- **Professional Format**: Traditional superscript style matches academic and publishing standards
+- **Visual Clarity**: Blue color (#166086) and superscript position make footnotes easy to spot without being distracting
 - **Automatic**: No manual work needed - footnotes are extracted and formatted automatically
 

@@ -235,14 +235,33 @@ class ConferencePDFGenerator:
         
     def _clean_text_for_pdf(self, text: str) -> str:
         """Clean and prepare text for PDF rendering"""
+        # First, temporarily replace footnote markers to protect them
+        import re
+        footnote_markers = {}
+        footnote_pattern = r'\{\{FOOTNOTE:(\d+)\}\}'
+
+        def save_footnote(match):
+            num = match.group(1)
+            marker_id = f"FOOTNOTE_PLACEHOLDER_{num}"
+            footnote_markers[marker_id] = num
+            return marker_id
+
+        text = re.sub(footnote_pattern, save_footnote, text)
+
         # Replace special characters that might cause issues
         text = text.replace('&', '&amp;')
         text = text.replace('<', '&lt;')
         text = text.replace('>', '&gt;')
-        
+
         # Handle non-breaking spaces
         text = text.replace('\xa0', ' ')
-        
+
+        # Now restore footnote markers with proper formatting
+        for marker_id, num in footnote_markers.items():
+            # Use ReportLab's super tag for superscript with color
+            formatted_marker = f'<super><font color="#2D83AE" size="8"> {num}</font></super>'
+            text = text.replace(marker_id, formatted_marker)
+
         return text
         
     def _split_into_paragraphs(self, text: str) -> List[str]:
