@@ -50,6 +50,8 @@ class HTMLContentExtractor(HTMLParser):
         self.footnotes = []  # List of footnote dictionaries
         self.current_footnote = None  # Current footnote being parsed
         self.in_footnote_text = False  # Track if we're in footnote text
+        self.pending_header_text = []  # Track header text to check if it's "Notes"
+        self.skip_notes_header = False  # Flag to skip "Notes" header
 
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
@@ -67,6 +69,11 @@ class HTMLContentExtractor(HTMLParser):
 
         # Skip processing if we're in the footer (footnotes section)
         if self.in_footer:
+            # Check if this is the "Notes" title paragraph
+            if tag == 'p' and attrs_dict.get('class') == 'title':
+                # This is the "Notes" heading - skip it entirely
+                self.skip_notes_header = True
+                return
             if tag == 'li' and 'data-marker' in attrs_dict:
                 # Start a new footnote
                 self.current_footnote = {
@@ -90,6 +97,7 @@ class HTMLContentExtractor(HTMLParser):
             self.in_paragraph = True
         elif tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
             self.in_header = True
+            self.pending_header_text = []  # Start collecting header text
         elif tag in ['em', 'i', 'strong', 'b']:
             self.in_emphasis = True
         elif tag == 'br':
@@ -120,6 +128,10 @@ class HTMLContentExtractor(HTMLParser):
 
         # Handle footnote list items
         if self.in_footer:
+            # Check if we're ending the "Notes" title paragraph
+            if tag == 'p' and self.skip_notes_header:
+                self.skip_notes_header = False
+                return
             if tag == 'li' and self.current_footnote:
                 # Finish current footnote
                 footnote_text = ''.join(self.current_footnote['text']).strip()
@@ -134,15 +146,35 @@ class HTMLContentExtractor(HTMLParser):
             self.current_text.append('\n\n')
         elif tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
             self.in_header = False
-            self.current_text.append('\n\n')
+            # Check if this header is "Notes" - if so, remove it from current_text
+            header_text = ''.join(self.pending_header_text).strip().lower()
+            if header_text == 'notes':
+                # Remove the "Notes" text from current_text
+                # Find and remove all items in pending_header_text from the end of current_text
+                for item in reversed(self.pending_header_text):
+                    if self.current_text and self.current_text[-1] == item:
+                        self.current_text.pop()
+                # Don't add the newlines for "Notes" header
+            else:
+                # For other headers, add the newlines
+                self.current_text.append('\n\n')
+            self.pending_header_text = []
         elif tag in ['em', 'i', 'strong', 'b']:
             self.in_emphasis = False
 
     def handle_data(self, data):
+        # Skip data if we're in the "Notes" title paragraph
+        if self.skip_notes_header:
+            return
+
         if self.in_footer and self.in_footnote_text and self.current_footnote:
             # Accumulate footnote text
             self.current_footnote['text'].append(data)
         elif data.strip():
+            # If we're in a header, track the text separately to check if it's "Notes"
+            if self.in_header:
+                self.pending_header_text.append(data)
+            # Always add to current_text (we'll remove it later if it's "Notes")
             self.current_text.append(data)
 
     def get_content(self):
