@@ -450,7 +450,7 @@ class ConferencePDFGenerator:
             print(f"    Warning: Failed to process image: {e}")
             return None
         
-    def _should_skip_paragraph(self, para_text: str, title: str, speaker: str) -> bool:
+    def _should_skip_paragraph(self, para_text: str, title: str, speaker: str, author_role: str = None) -> bool:
         """Check if a paragraph should be skipped (duplicate title/speaker info)"""
         para_clean = para_text.strip().lower()
         title_clean = title.strip().lower()
@@ -468,6 +468,12 @@ class ConferencePDFGenerator:
         if para_clean.startswith("by ") and speaker_clean in para_clean:
             return True
 
+        # Skip if paragraph matches the author role that was already displayed
+        if author_role:
+            author_role_clean = author_role.strip().lower()
+            if para_clean == author_role_clean:
+                return True
+
         # Skip common role/title lines that appear after speaker name
         role_keywords = [
             'president of the church',
@@ -476,6 +482,7 @@ class ConferencePDFGenerator:
             'acting president of the quorum of the twelve apostles',
             'president of the quorum of the twelve apostles',
             'of the quorum of the twelve apostles',
+            'of the seventy',
             'first counselor in the',
             'second counselor in the',
             'presidency of the seventy',
@@ -543,7 +550,7 @@ class ConferencePDFGenerator:
                     for para_text in paragraphs:
                         if para_text:
                             # Skip duplicate title/speaker paragraphs
-                            if self._should_skip_paragraph(para_text, title, speaker):
+                            if self._should_skip_paragraph(para_text, title, speaker, author_role):
                                 continue
 
                             cleaned_text = self._clean_text_for_pdf(para_text)
@@ -588,7 +595,7 @@ class ConferencePDFGenerator:
             for para_text in paragraphs:
                 if para_text:
                     # Skip duplicate title/speaker paragraphs
-                    if self._should_skip_paragraph(para_text, title, speaker):
+                    if self._should_skip_paragraph(para_text, title, speaker, author_role):
                         continue
 
                     cleaned_text = self._clean_text_for_pdf(para_text)
