@@ -96,6 +96,30 @@ class ConferencePDFGenerator:
             alignment=TA_LEFT,
             fontName='Helvetica-Bold'
         ))
+
+        # Footnote title style
+        self.styles.add(ParagraphStyle(
+            name='FootnoteTitle',
+            parent=self.styles['Heading3'],
+            fontSize=12,
+            textColor=colors.HexColor('#003366'),
+            spaceAfter=8,
+            spaceBefore=16,
+            alignment=TA_LEFT,
+            fontName='Helvetica-Bold'
+        ))
+
+        # Footnote text style
+        self.styles.add(ParagraphStyle(
+            name='FootnoteText',
+            parent=self.styles['Normal'],
+            fontSize=9,
+            leading=12,
+            alignment=TA_LEFT,
+            spaceAfter=6,
+            leftIndent=20,
+            fontName='Helvetica'
+        ))
         
     def _create_cover_page(self, story: List):
         """Create a cover page for the PDF"""
@@ -369,6 +393,27 @@ class ConferencePDFGenerator:
                     cleaned_text = self._clean_text_for_pdf(para_text)
                     para = Paragraph(cleaned_text, self.styles['TalkBody'])
                     story.append(para)
+
+        # Add footnotes if present
+        footnotes = talk.get('footnotes', [])
+        if footnotes:
+            story.append(Spacer(1, 0.3*inch))
+
+            # Footnotes title
+            footnote_title = Paragraph("Notes", self.styles['FootnoteTitle'])
+            story.append(footnote_title)
+
+            # Add each footnote
+            for footnote in footnotes:
+                marker = footnote.get('marker', '').rstrip('.')  # Remove trailing period if present
+                text = footnote.get('text', '')
+
+                if marker and text:
+                    # Clean the footnote text for PDF
+                    cleaned_text = self._clean_text_for_pdf(text)
+                    # Add the marker number at the beginning
+                    footnote_para = Paragraph(f"<b>{marker}</b> {cleaned_text}", self.styles['FootnoteText'])
+                    story.append(footnote_para)
 
         # Page break after each talk
         story.append(PageBreak())

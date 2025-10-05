@@ -19,6 +19,18 @@ import urllib.request
 from html.parser import HTMLParser
 from typing import List, Dict, Optional
 from datetime import datetime
+from html import unescape
+
+
+def strip_html_tags(html_text: str) -> str:
+    """Strip HTML tags from text while preserving content"""
+    # Remove HTML tags but keep the text content
+    text = re.sub(r'<[^>]+>', '', html_text)
+    # Unescape HTML entities
+    text = unescape(text)
+    # Clean up whitespace
+    text = ' '.join(text.split())
+    return text
 
 
 class HTMLContentExtractor(HTMLParser):
@@ -34,8 +46,44 @@ class HTMLContentExtractor(HTMLParser):
         self.in_paragraph = False
         self.in_header = False
         self.in_emphasis = False
+        self.in_footer = False  # Track if we're in the footnotes section
+        self.footnotes = []  # List of footnote dictionaries
+        self.current_footnote = None  # Current footnote being parsed
+        self.in_footnote_text = False  # Track if we're in footnote text
 
     def handle_starttag(self, tag, attrs):
+        attrs_dict = dict(attrs)
+
+        # Check if we're entering the footnotes section
+        if tag == 'footer':
+            self.in_footer = True
+            # Save any accumulated text before footnotes
+            if self.current_text:
+                text = ''.join(self.current_text).strip()
+                if text:
+                    self.content_parts.append(('text', text))
+                self.current_text = []
+            return
+
+        # Skip processing if we're in the footer (footnotes section)
+        if self.in_footer:
+            if tag == 'li' and 'data-marker' in attrs_dict:
+                # Start a new footnote
+                self.current_footnote = {
+                    'marker': attrs_dict.get('data-marker', ''),
+                    'id': attrs_dict.get('id', ''),
+                    'text': []
+                }
+                self.in_footnote_text = True
+            return
+
+        # Handle superscript footnote markers in the text
+        if tag == 'sup' and attrs_dict.get('class') == 'marker':
+            footnote_num = attrs_dict.get('data-value', '')
+            if footnote_num:
+                self.current_text.append(f'[{footnote_num}]')
+            return
+
         if tag == 'p':
             self.in_paragraph = True
         elif tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
@@ -53,7 +101,6 @@ class HTMLContentExtractor(HTMLParser):
                 self.current_text = []
 
             # Extract image information
-            attrs_dict = dict(attrs)
             image_info = {
                 'src': attrs_dict.get('src', ''),
                 'alt': attrs_dict.get('alt', ''),
@@ -65,6 +112,21 @@ class HTMLContentExtractor(HTMLParser):
             self.content_parts.append(('image', image_info))
 
     def handle_endtag(self, tag):
+        if tag == 'footer':
+            self.in_footer = False
+            return
+
+        # Handle footnote list items
+        if self.in_footer:
+            if tag == 'li' and self.current_footnote:
+                # Finish current footnote
+                footnote_text = ''.join(self.current_footnote['text']).strip()
+                self.current_footnote['text'] = footnote_text
+                self.footnotes.append(self.current_footnote)
+                self.current_footnote = None
+                self.in_footnote_text = False
+            return
+
         if tag == 'p':
             self.in_paragraph = False
             self.current_text.append('\n\n')
@@ -75,17 +137,20 @@ class HTMLContentExtractor(HTMLParser):
             self.in_emphasis = False
 
     def handle_data(self, data):
-        if data.strip():
+        if self.in_footer and self.in_footnote_text and self.current_footnote:
+            # Accumulate footnote text
+            self.current_footnote['text'].append(data)
+        elif data.strip():
             self.current_text.append(data)
 
     def get_content(self):
-        """Return list of content parts (text and images)"""
+        """Return list of content parts (text and images) and footnotes"""
         # Add any remaining text
         if self.current_text:
             text = ''.join(self.current_text).strip()
             if text:
                 self.content_parts.append(('text', text))
-        return self.content_parts
+        return self.content_parts, self.footnotes
 
 
 class ConferenceScraper:
@@ -192,9 +257,27 @@ class ConferenceScraper:
             
     def extract_content_from_html(self, html: str) -> Dict:
         """Extract text and images from HTML content"""
+        # First, extract footnotes using regex (more reliable for nested HTML)
+        footnotes = []
+        footnote_pattern = r'<li[^>]*data-marker="([^"]+)"[^>]*id="([^"]+)"[^>]*>(.*?)</li>'
+        for match in re.finditer(footnote_pattern, html, re.DOTALL):
+            marker = match.group(1)
+            note_id = match.group(2)
+            footnote_html = match.group(3)
+
+            # Strip HTML tags from footnote text
+            footnote_text = strip_html_tags(footnote_html)
+
+            footnotes.append({
+                'marker': marker,
+                'id': note_id,
+                'text': footnote_text
+            })
+
+        # Now extract content (text and images)
         extractor = HTMLContentExtractor()
         extractor.feed(html)
-        content_parts = extractor.get_content()
+        content_parts, _ = extractor.get_content()  # Ignore footnotes from extractor
 
         # Build structured content with images at their proper positions
         structured_content = []
@@ -221,7 +304,8 @@ class ConferenceScraper:
 
         return {
             'text': '\n\n'.join(text_parts),
-            'structured_content': structured_content
+            'structured_content': structured_content,
+            'footnotes': footnotes
         }
         
     def scrape_all_talks(self) -> List[Dict]:
@@ -254,12 +338,16 @@ class ConferenceScraper:
 
                 talk_info['content'] = content_data['text']
                 talk_info['structured_content'] = content_data['structured_content']
+                talk_info['footnotes'] = content_data.get('footnotes', [])
                 talk_info['full_data'] = talk_data
 
-                # Count images
+                # Count images and footnotes
                 image_count = sum(1 for item in content_data['structured_content'] if item['type'] == 'image')
+                footnote_count = len(content_data.get('footnotes', []))
                 if image_count > 0:
                     print(f"  Found {image_count} image(s)")
+                if footnote_count > 0:
+                    print(f"  Found {footnote_count} footnote(s)")
 
                 talks.append(talk_info)
                 
