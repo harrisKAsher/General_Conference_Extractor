@@ -8,6 +8,11 @@ This module generates formatted PDF documents from scraped conference data.
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
+
+# Define B5 size in pixels (498 × 708px)
+# In ReportLab, we need to convert pixels to points (1 point = 1/72 inch)
+# Assuming 72 DPI: 498px = 498 points, 708px = 708 points
+B5_CUSTOM = (498, 708)
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image
 from reportlab.lib import colors
@@ -254,8 +259,16 @@ class ConferencePDFGenerator:
             print(f"    Warning: Failed to download image from {url}: {e}")
             return None
 
-    def _create_image_flowable(self, image_info: Dict, max_width: float = 5.5*inch) -> Optional[Image]:
+    def _create_image_flowable(self, image_info: Dict, max_width: float = None, max_height: float = None) -> Optional[Image]:
         """Create a ReportLab Image flowable from image info"""
+        # Calculate max dimensions based on B5 page size with margins
+        # The actual frame size is smaller due to internal padding in SimpleDocTemplate
+        # Frame is 378.0 x 588.0 points, so we use slightly smaller values to be safe
+        if max_width is None:
+            max_width = 310  # Safe width within the 378 point frame
+        if max_height is None:
+            max_height = 490  # Safe height within the 588 point frame
+
         url = image_info.get('url', '')
         if not url:
             return None
@@ -273,14 +286,13 @@ class ConferencePDFGenerator:
             pil_image = PILImage.open(image_buffer)
             img_width, img_height = pil_image.size
 
-            # Calculate scaling to fit within max_width while maintaining aspect ratio
-            if img_width > max_width:
-                scale = max_width / img_width
-                display_width = max_width
-                display_height = img_height * scale
-            else:
-                display_width = img_width
-                display_height = img_height
+            # Calculate scaling to fit within max dimensions while maintaining aspect ratio
+            width_scale = max_width / img_width if img_width > max_width else 1.0
+            height_scale = max_height / img_height if img_height > max_height else 1.0
+            scale = min(width_scale, height_scale)
+
+            display_width = img_width * scale
+            display_height = img_height * scale
 
             # Reset buffer for ReportLab
             image_buffer.seek(0)
@@ -370,7 +382,7 @@ class ConferencePDFGenerator:
         # Create the PDF document
         doc = SimpleDocTemplate(
             output_filename,
-            pagesize=letter,
+            pagesize=B5_CUSTOM,
             rightMargin=0.75*inch,
             leftMargin=0.75*inch,
             topMargin=0.75*inch,
