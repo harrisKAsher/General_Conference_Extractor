@@ -129,6 +129,11 @@ class ConferenceScraper:
             title_match = re.search(r'<p class="title">([^<]+)</p>', item_html)
             title = title_match.group(1).strip() if title_match else 'Untitled'
 
+            # Skip sustaining and audit reports
+            title_lower = title.lower()
+            if 'sustaining' in title_lower or 'audit' in title_lower:
+                continue
+
             talk_info = {
                 'url': url,
                 'speaker': speaker,

@@ -15,6 +15,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import json
 import sys
+import re
 from datetime import datetime
 from typing import Dict, List
 
@@ -90,15 +91,15 @@ class ConferencePDFGenerator:
     def _create_cover_page(self, story: List):
         """Create a cover page for the PDF"""
         conference_title = self.conference_data.get('conference_title', 'General Conference')
-        
+
         # Add some space from top
         story.append(Spacer(1, 2*inch))
-        
+
         # Conference title
         title = Paragraph(conference_title, self.styles['ConferenceTitle'])
         story.append(title)
         story.append(Spacer(1, 0.5*inch))
-        
+
         # Subtitle
         subtitle_style = ParagraphStyle(
             name='Subtitle',
@@ -113,7 +114,7 @@ class ConferencePDFGenerator:
         )
         story.append(subtitle)
         story.append(Spacer(1, 0.3*inch))
-        
+
         # Generated date
         date_style = ParagraphStyle(
             name='DateStyle',
@@ -127,9 +128,52 @@ class ConferencePDFGenerator:
             date_style
         )
         story.append(date_text)
-        
+
         # Page break after cover
         story.append(PageBreak())
+
+    def _create_session_page(self, story: List, session_name: str):
+        """Create a session header page"""
+        # Add some space from top
+        story.append(Spacer(1, 3*inch))
+
+        # Session title style
+        session_title_style = ParagraphStyle(
+            name='SessionTitle',
+            parent=self.styles['Heading1'],
+            fontSize=28,
+            textColor=colors.HexColor('#003366'),
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold'
+        )
+
+        # Session title
+        title = Paragraph(session_name, session_title_style)
+        story.append(title)
+
+        # Page break after session header
+        story.append(PageBreak())
+
+    def _extract_session_number(self, talk_url: str) -> str:
+        """Extract session number from talk URL"""
+        # URLs are like /study/general-conference/2025/04/13holland
+        # The first digit of the number indicates the session (1=Sat AM, 2=Sat PM, etc.)
+        match = re.search(r'/(\d+)[a-z]', talk_url)
+        if match:
+            full_number = match.group(1)
+            return full_number[0]  # Return first digit as session number
+        return '0'
+
+    def _get_session_name(self, session_number: str) -> str:
+        """Map session number to session name"""
+        session_names = {
+            '1': 'Saturday Morning Session',
+            '2': 'Saturday Afternoon Session',
+            '3': 'Priesthood Session',
+            '4': 'Sunday Morning Session',
+            '5': 'Sunday Afternoon Session'
+        }
+        return session_names.get(session_number, f'Session {session_number}')
         
     def _create_table_of_contents(self, story: List):
         """Create a table of contents"""
@@ -232,24 +276,26 @@ class ConferencePDFGenerator:
         
         # Build the story (content)
         story = []
-        
-        # Add cover page
-        print("Creating cover page...")
-        self._create_cover_page(story)
-        
-        # Add table of contents
-        print("Creating table of contents...")
-        self._create_table_of_contents(story)
-        
-        # Add each talk
+
+        # Add each talk with session headers
         talks = self.conference_data.get('talks', [])
         print(f"\nAdding {len(talks)} talks to PDF...")
-        
+
+        current_session = None
         for i, talk in enumerate(talks, 1):
             speaker = talk.get('speaker', 'Unknown')
             title = talk.get('title', 'Untitled')
+            talk_url = talk.get('url', '')
+
+            # Check if we're starting a new session
+            session_number = self._extract_session_number(talk_url)
+            if session_number != current_session and session_number != '0':
+                current_session = session_number
+                session_name = self._get_session_name(session_number)
+                print(f"\n  === {session_name} ===")
+                self._create_session_page(story, session_name)
+
             print(f"  [{i}/{len(talks)}] {speaker}: {title}")
-            
             self._add_talk_to_story(story, talk, i)
             
         # Build the PDF
