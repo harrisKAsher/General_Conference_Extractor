@@ -7,6 +7,7 @@ A Python web scraping tool that extracts talks from Church of Jesus Christ Gener
 - Scrapes conference talks from churchofjesuschrist.org
 - Extracts speaker names, talk titles, and full content
 - **Includes images from talks in the PDF** (portraits, photos, artwork, etc.)
+- **PDF Bookmarks/Outline** - Navigate easily between sessions and talks using the PDF reader's sidebar
 - Generates professionally formatted PDF documents
 - Includes cover page and session dividers
 - Reusable for different conference years and sessions
@@ -72,7 +73,9 @@ python generate_conference_pdf.py "https://www.churchofjesuschrist.org/study/gen
 
 **Important:** Always wrap the URL in quotes to prevent shell expansion issues.
 
-This will create a PDF file named `2025_April.pdf` in the current directory.
+This will create a PDF file named `2025_April.pdf` in the `Output` directory with **automatic bookmarks** for easy navigation.
+
+💡 **New!** See [QUICK_START_BOOKMARKS.md](QUICK_START_BOOKMARKS.md) to learn about the bookmark navigation feature.
 
 ### Specify Output Filename
 
@@ -206,7 +209,18 @@ For issues or questions, please check:
 3. Valid conference URL format
 4. Internet connection
 
+## Additional Documentation
+
+- [Bookmarks/Outline Feature](BOOKMARKS_FEATURE.md) - Navigate PDFs with hierarchical bookmarks
+- [Image Support](IMAGE_SUPPORT.md) - How images are handled in PDFs
+- [Footnotes Feature](FOOTNOTES_FEATURE.md) - Footnote extraction and formatting
+
 ## Version History
+
+- **v1.2** (2025-10-05): PDF Bookmarks/Outline added
+  - Hierarchical bookmarks for sessions and talks
+  - Easy navigation in PDF readers
+  - Verification script to check bookmarks
 
 - **v1.1** (2025-10-05): Image support added
   - Images from talks are now included in PDFs

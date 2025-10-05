@@ -14,10 +14,11 @@ from reportlab.lib.units import inch
 # Assuming 72 DPI: 498px = 498 points, 708px = 708 points
 B5_CUSTOM = (498, 708)
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image, Frame, PageTemplate
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image, Frame, PageTemplate, Flowable
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen import canvas as pdfgen_canvas
 import json
 import sys
 import re
@@ -26,6 +27,23 @@ import io
 from datetime import datetime
 from typing import Dict, List, Optional
 from PIL import Image as PILImage
+
+
+class BookmarkFlowable(Flowable):
+    """A flowable that adds a bookmark to the PDF outline"""
+
+    def __init__(self, key, title, level=0):
+        Flowable.__init__(self)
+        self.key = key
+        self.title = title
+        self.level = level
+        self.height = 0
+        self.width = 0
+
+    def draw(self):
+        # Register the bookmark at the current position
+        self.canv.bookmarkPage(self.key)
+        self.canv.addOutlineEntry(self.title, self.key, self.level, closed=False)
 
 
 class ConferencePDFGenerator:
@@ -231,8 +249,12 @@ class ConferencePDFGenerator:
         # Page break after cover
         story.append(PageBreak())
 
-    def _create_session_page(self, story: List, session_name: str):
+    def _create_session_page(self, story: List, session_name: str, session_key: str):
         """Create a session header page"""
+        # Add bookmark marker for this session (level 0 = top level)
+        bookmark = BookmarkFlowable(session_key, session_name, level=0)
+        story.append(bookmark)
+
         # Add some space from top
         story.append(Spacer(1, 3*inch))
 
@@ -282,7 +304,7 @@ class ConferencePDFGenerator:
         session_names = {
             '1': 'Saturday Morning Session',
             '2': 'Saturday Afternoon Session',
-            '3': 'Priesthood Session',
+            '3': 'Sunday Evening Session',
             '4': 'Sunday Morning Session',
             '5': 'Sunday Afternoon Session'
         }
@@ -471,16 +493,24 @@ class ConferencePDFGenerator:
 
         return False
 
-    def _add_talk_to_story(self, story: List, talk: Dict, talk_number: int):
+    def _add_talk_to_story(self, story: List, talk: Dict, talk_number: int, parent_bookmark_key: str = None):
         """Add a single talk to the PDF story"""
 
-        # Talk title
+        # Add bookmark marker for this talk (level 1 = nested under session)
         title = talk.get('title', 'Untitled')
+        speaker = talk.get('speaker', 'Unknown')
+        talk_key = f"talk_{talk_number}"
+        bookmark_title = f"{speaker}: {title}"
+
+        # Create bookmark as a child of the session (level 1)
+        bookmark = BookmarkFlowable(talk_key, bookmark_title, level=1)
+        story.append(bookmark)
+
+        # Talk title
         title_para = Paragraph(self._clean_text_for_pdf(title), self.styles['TalkTitle'])
         story.append(title_para)
 
         # Speaker name with "By" prefix
-        speaker = talk.get('speaker', 'Unknown')
         speaker_text = f"By {speaker}"
         speaker_para = Paragraph(self._clean_text_for_pdf(speaker_text), self.styles['Speaker'])
         story.append(speaker_para)
@@ -653,6 +683,7 @@ class ConferencePDFGenerator:
         print(f"\nAdding {len(talks)} talks to PDF...")
 
         current_session = None
+        current_session_key = None
         for i, talk in enumerate(talks, 1):
             speaker = talk.get('speaker', 'Unknown')
             title = talk.get('title', 'Untitled')
@@ -663,11 +694,12 @@ class ConferencePDFGenerator:
             if session_number != current_session and session_number != '0':
                 current_session = session_number
                 session_name = self._get_session_name(session_number)
+                current_session_key = f"session_{session_number}"
                 print(f"\n  === {session_name} ===")
-                self._create_session_page(story, session_name)
+                self._create_session_page(story, session_name, current_session_key)
 
             print(f"  [{i}/{len(talks)}] {speaker}: {title}")
-            self._add_talk_to_story(story, talk, i)
+            self._add_talk_to_story(story, talk, i, current_session_key)
 
         # Build the PDF with custom page callbacks
         print("\nBuilding PDF document...")
