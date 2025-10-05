@@ -14,7 +14,7 @@ from reportlab.lib.units import inch
 # Assuming 72 DPI: 498px = 498 points, 708px = 708 points
 B5_CUSTOM = (498, 708)
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image, Frame, PageTemplate
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -183,45 +183,50 @@ class ConferencePDFGenerator:
         ))
         
     def _create_cover_page(self, story: List):
-        """Create a cover page for the PDF"""
-        conference_title = self.conference_data.get('conference_title', 'General Conference')
+        """Create a cover page for the PDF with border and disclaimer"""
+        # Add space from top to center content vertically
+        story.append(Spacer(1, 2.5*inch))
 
-        # Add some space from top
-        story.append(Spacer(1, 2*inch))
-
-        # Conference title
-        title = Paragraph(conference_title, self.styles['ConferenceTitle'])
+        # Main title: "General Conference"
+        title_style = ParagraphStyle(
+            name='CoverTitle',
+            parent=self.styles['Normal'],
+            fontSize=36,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor('#003366'),
+            fontName='Helvetica-Bold',
+            spaceAfter=36
+        )
+        title = Paragraph("General Conference", title_style)
         story.append(title)
-        story.append(Spacer(1, 0.5*inch))
 
-        # Subtitle
-        subtitle_style = ParagraphStyle(
-            name='Subtitle',
-            parent=self.styles['Normal'],
-            fontSize=14,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor('#666666')
-        )
-        subtitle = Paragraph(
-            "The Church of Jesus Christ of Latter-day Saints",
-            subtitle_style
-        )
-        story.append(subtitle)
-        story.append(Spacer(1, 0.3*inch))
+        # Conference date (e.g., "April 2024")
+        if self.conference_date:
+            date_style = ParagraphStyle(
+                name='CoverDate',
+                parent=self.styles['Normal'],
+                fontSize=24,
+                alignment=TA_CENTER,
+                textColor=colors.HexColor('#003366'),
+                fontName='Helvetica'
+            )
+            date_text = Paragraph(self.conference_date, date_style)
+            story.append(date_text)
 
-        # Generated date
-        date_style = ParagraphStyle(
-            name='DateStyle',
+        # Add space to push disclaimer to bottom
+        story.append(Spacer(1, 4.5*inch))
+
+        # Very faint disclaimer at bottom
+        disclaimer_style = ParagraphStyle(
+            name='Disclaimer',
             parent=self.styles['Normal'],
-            fontSize=10,
+            fontSize=8,
             alignment=TA_CENTER,
-            textColor=colors.HexColor('#999999')
+            textColor=colors.HexColor('#E0E0E0'),  # Very light gray
+            fontName='Helvetica'
         )
-        date_text = Paragraph(
-            f"Generated: {datetime.now().strftime('%B %d, %Y')}",
-            date_style
-        )
-        story.append(date_text)
+        disclaimer = Paragraph("This is not an official church production", disclaimer_style)
+        story.append(disclaimer)
 
         # Page break after cover
         story.append(PageBreak())
@@ -575,13 +580,44 @@ class ConferencePDFGenerator:
         # Page break after each talk
         story.append(PageBreak())
         
+    def _draw_cover_border(self, canvas, doc):
+        """Draw a decorative border on the cover page"""
+        canvas.saveState()
+
+        # Set border properties
+        canvas.setStrokeColor(colors.HexColor('#003366'))
+        canvas.setLineWidth(2)
+
+        # Draw border with some margin from page edges
+        margin = 0.5 * inch
+        page_width, page_height = B5_CUSTOM
+
+        canvas.rect(
+            margin,
+            margin,
+            page_width - 2*margin,
+            page_height - 2*margin,
+            stroke=1,
+            fill=0
+        )
+
+        canvas.restoreState()
+
+    def _on_first_page(self, canvas, doc):
+        """Callback for the first page (cover page) with border"""
+        self._draw_cover_border(canvas, doc)
+
+    def _on_later_pages(self, canvas, doc):
+        """Callback for pages after the cover (no border)"""
+        pass
+
     def generate_pdf(self, output_filename: str):
         """Generate the PDF document"""
-        
+
         print(f"\nGenerating PDF: {output_filename}")
         print("="*80)
-        
-        # Create the PDF document
+
+        # Create the PDF document with custom page templates
         doc = SimpleDocTemplate(
             output_filename,
             pagesize=B5_CUSTOM,
@@ -590,9 +626,13 @@ class ConferencePDFGenerator:
             topMargin=0.75*inch,
             bottomMargin=0.75*inch
         )
-        
+
         # Build the story (content)
         story = []
+
+        # Add cover page
+        print("\nAdding cover page...")
+        self._create_cover_page(story)
 
         # Add each talk with session headers
         talks = self.conference_data.get('talks', [])
@@ -614,11 +654,11 @@ class ConferencePDFGenerator:
 
             print(f"  [{i}/{len(talks)}] {speaker}: {title}")
             self._add_talk_to_story(story, talk, i)
-            
-        # Build the PDF
+
+        # Build the PDF with custom page callbacks
         print("\nBuilding PDF document...")
-        doc.build(story)
-        
+        doc.build(story, onFirstPage=self._on_first_page, onLaterPages=self._on_later_pages)
+
         print(f"\n{'='*80}")
         print(f"PDF generated successfully: {output_filename}")
         print(f"{'='*80}")
