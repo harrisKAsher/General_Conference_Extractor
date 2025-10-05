@@ -94,7 +94,7 @@ class ConferencePDFGenerator:
         self.styles.add(ParagraphStyle(
             name='Speaker',
             parent=self.styles['Normal'],
-            fontSize=11,
+            fontSize=12,
             textColor=colors.black,
             spaceAfter=2,
             alignment=TA_LEFT,
@@ -105,20 +105,20 @@ class ConferencePDFGenerator:
         self.styles.add(ParagraphStyle(
             name='AuthorRole',
             parent=self.styles['Normal'],
-            fontSize=10,
+            fontSize=11,
             textColor=colors.black,
             spaceAfter=2,
             alignment=TA_LEFT,
-            fontName='Helvetica-Oblique'
+            fontName='Times-Italic'
         ))
 
         # Conference date style
         self.styles.add(ParagraphStyle(
             name='ConferenceDate',
             parent=self.styles['Normal'],
-            fontSize=10,
+            fontSize=11,
             textColor=colors.HexColor('#5A7FA5'),
-            spaceAfter=12,
+            spaceAfter=0,
             alignment=TA_LEFT,
             fontName='Helvetica'
         ))
@@ -127,23 +127,23 @@ class ConferencePDFGenerator:
         self.styles.add(ParagraphStyle(
             name='TalkHighlight',
             parent=self.styles['Normal'],
-            fontSize=13,
-            leading=19,
-            textColor=colors.HexColor('#334E68'),
+            fontSize=14,
+            leading=15,
+            textColor=colors.HexColor('#486581'),
             alignment=TA_JUSTIFY,
-            spaceAfter=14,
-            fontName='Helvetica-Oblique'
+            spaceAfter=10,
+            fontName='Times-Italic'
         ))
-        
+
         # Body text style
         self.styles.add(ParagraphStyle(
             name='TalkBody',
             parent=self.styles['Normal'],
-            fontSize=11,
-            leading=16,
+            fontSize=10,
+            leading=11,
             alignment=TA_JUSTIFY,
-            spaceAfter=12,
-            fontName='Helvetica'
+            spaceAfter=5,
+            fontName='Times-Roman'
         ))
         
         # Session header style
@@ -165,7 +165,7 @@ class ConferencePDFGenerator:
             fontSize=12,
             textColor=colors.HexColor('#003366'),
             spaceAfter=8,
-            spaceBefore=16,
+            spaceBefore=0,
             alignment=TA_LEFT,
             fontName='Helvetica-Bold'
         ))
@@ -174,12 +174,12 @@ class ConferencePDFGenerator:
         self.styles.add(ParagraphStyle(
             name='FootnoteText',
             parent=self.styles['Normal'],
-            fontSize=9,
-            leading=12,
+            fontSize=10,
+            leading=11,
             alignment=TA_LEFT,
             spaceAfter=6,
-            leftIndent=20,
-            fontName='Helvetica'
+            leftIndent=8,
+            fontName='Times-Roman'
         ))
         
     def _create_cover_page(self, story: List):
@@ -320,7 +320,7 @@ class ConferencePDFGenerator:
         # Now restore footnote markers with proper formatting
         for marker_id, num in footnote_markers.items():
             # Use ReportLab's super tag for superscript with color
-            formatted_marker = f'<super><font color="#2D83AE" size="8"> {num}</font></super>'
+            formatted_marker = f'<super><font color="#2D83AE" size="7"> {num}</font></super>'
             text = text.replace(marker_id, formatted_marker)
 
         return text
@@ -371,7 +371,7 @@ class ConferencePDFGenerator:
         if max_width is None:
             max_width = 310  # Safe width within the 378 point frame
         if max_height is None:
-            max_height = 490  # Safe height within the 588 point frame
+            max_height = 310  # Safe height within the 588 point frame
 
         url = image_info.get('url', '')
         if not url:
@@ -524,7 +524,7 @@ class ConferencePDFGenerator:
                                 alignment=TA_CENTER,
                                 spaceAfter=6,
                                 spaceBefore=3,
-                                fontName='Helvetica-Oblique'
+                                fontName='Times-Italic'
                             )
                             caption_para = Paragraph(self._clean_text_for_pdf(caption), caption_style)
                             story.append(caption_para)
