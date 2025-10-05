@@ -696,8 +696,8 @@ class ConferencePDFGenerator:
                         story.append(Spacer(1, 0.15*inch))
                         story.append(img_flowable)
 
-                        # Add caption if available
-                        caption = item.get('title') or item.get('alt', '')
+                        # Add caption from credit field if available
+                        caption = item.get('credit', '')
                         if caption:
                             caption_style = ParagraphStyle(
                                 name='ImageCaption',
@@ -752,7 +752,7 @@ class ConferencePDFGenerator:
                     # Clean the footnote text for PDF
                     cleaned_text = self._clean_text_for_pdf(text)
                     # Add the marker number at the beginning
-                    footnote_para = Paragraph(f"<b>{marker}</b> {cleaned_text}", self.styles['FootnoteText'])
+                    footnote_para = Paragraph(f"<b>{marker}.</b> {cleaned_text}", self.styles['FootnoteText'])
                     story.append(footnote_para)
 
         # Page break after each talk

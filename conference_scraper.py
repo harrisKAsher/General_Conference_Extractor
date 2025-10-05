@@ -322,6 +322,26 @@ class ConferenceScraper:
                 'text': footnote_text
             })
 
+        # Extract image credits from figure elements
+        # Map image src to credit text
+        image_credits = {}
+        figure_pattern = r'<figure[^>]*>(.*?)</figure>'
+        for figure_match in re.finditer(figure_pattern, html, re.DOTALL):
+            figure_html = figure_match.group(1)
+
+            # Extract img src from this figure
+            img_match = re.search(r'<img[^>]*src="([^"]+)"[^>]*>', figure_html)
+            if img_match:
+                img_src = img_match.group(1)
+
+                # Look for credit div in this figure
+                credit_match = re.search(r'<div[^>]*class="credit"[^>]*>(.*?)</div>', figure_html, re.DOTALL)
+                if credit_match:
+                    credit_html = credit_match.group(1)
+                    # Strip HTML tags to get clean text
+                    credit_text = strip_html_tags(credit_html)
+                    image_credits[img_src] = credit_text
+
         # Now extract content (text and images)
         extractor = HTMLContentExtractor()
         extractor.feed(html)
@@ -347,14 +367,18 @@ class ConferenceScraper:
                 })
             elif content_type == 'image':
                 content = item[1]
+                img_src = content['src']
+                # Get credit from the mapping, if available
+                credit = image_credits.get(img_src, '')
                 structured_content.append({
                     'type': 'image',
-                    'url': content['src'],
+                    'url': img_src,
                     'alt': content['alt'],
                     'title': content['data-public-title'],
                     'description': content['data-public-description'],
                     'width': content['data-width'],
-                    'height': content['data-height']
+                    'height': content['data-height'],
+                    'credit': credit
                 })
 
         # For backward compatibility, also provide text-only version
