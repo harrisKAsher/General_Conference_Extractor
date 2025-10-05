@@ -41,10 +41,11 @@ class HTMLContentExtractor(HTMLParser):
         self.reset()
         self.strict = False
         self.convert_charrefs = True
-        self.content_parts = []  # List of tuples: ('text', content) or ('image', image_info)
+        self.content_parts = []  # List of tuples: ('text', content) or ('image', image_info) or ('header', level, content)
         self.current_text = []
         self.in_paragraph = False
         self.in_header = False
+        self.current_header_level = None  # Track the level of the current header (1-6)
         self.in_emphasis = False
         self.in_footer = False  # Track if we're in the footnotes section
         self.footnotes = []  # List of footnote dictionaries
@@ -97,6 +98,7 @@ class HTMLContentExtractor(HTMLParser):
             self.in_paragraph = True
         elif tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
             self.in_header = True
+            self.current_header_level = int(tag[1])  # Extract level from tag (h1 -> 1, h2 -> 2, etc.)
             self.pending_header_text = []  # Start collecting header text
         elif tag in ['em', 'i', 'strong', 'b']:
             self.in_emphasis = True
@@ -146,19 +148,24 @@ class HTMLContentExtractor(HTMLParser):
             self.current_text.append('\n\n')
         elif tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
             self.in_header = False
-            # Check if this header is "Notes" - if so, remove it from current_text
-            header_text = ''.join(self.pending_header_text).strip().lower()
-            if header_text == 'notes':
-                # Remove the "Notes" text from current_text
-                # Find and remove all items in pending_header_text from the end of current_text
-                for item in reversed(self.pending_header_text):
-                    if self.current_text and self.current_text[-1] == item:
-                        self.current_text.pop()
-                # Don't add the newlines for "Notes" header
-            else:
-                # For other headers, add the newlines
-                self.current_text.append('\n\n')
+            # Get the header text
+            header_text = ''.join(self.pending_header_text).strip()
+
+            # Skip "Notes" header entirely
+            if header_text.lower() != 'notes':
+                # For other headers, save accumulated text first, then add header as separate item
+                if self.current_text:
+                    text = ''.join(self.current_text).strip()
+                    if text:
+                        self.content_parts.append(('text', text))
+                    self.current_text = []
+
+                # Add the header as a separate content part
+                if header_text:
+                    self.content_parts.append(('header', self.current_header_level, header_text))
+
             self.pending_header_text = []
+            self.current_header_level = None
         elif tag in ['em', 'i', 'strong', 'b']:
             self.in_emphasis = False
 
@@ -171,11 +178,12 @@ class HTMLContentExtractor(HTMLParser):
             # Accumulate footnote text
             self.current_footnote['text'].append(data)
         elif data.strip():
-            # If we're in a header, track the text separately to check if it's "Notes"
+            # If we're in a header, track the text separately (don't add to current_text)
             if self.in_header:
                 self.pending_header_text.append(data)
-            # Always add to current_text (we'll remove it later if it's "Notes")
-            self.current_text.append(data)
+            else:
+                # Only add to current_text if we're NOT in a header
+                self.current_text.append(data)
 
     def get_content(self):
         """Return list of content parts (text and images) and footnotes"""
@@ -319,16 +327,26 @@ class ConferenceScraper:
         extractor.feed(html)
         content_parts, _ = extractor.get_content()  # Ignore footnotes from extractor
 
-        # Build structured content with images at their proper positions
+        # Build structured content with images and headers at their proper positions
         structured_content = []
 
-        for content_type, content in content_parts:
+        for item in content_parts:
+            content_type = item[0]
+
             if content_type == 'text':
                 structured_content.append({
                     'type': 'text',
-                    'content': content
+                    'content': item[1]
+                })
+            elif content_type == 'header':
+                # item is ('header', level, text)
+                structured_content.append({
+                    'type': 'header',
+                    'level': item[1],
+                    'content': item[2]
                 })
             elif content_type == 'image':
+                content = item[1]
                 structured_content.append({
                     'type': 'image',
                     'url': content['src'],

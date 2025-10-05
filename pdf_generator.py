@@ -264,6 +264,43 @@ class ConferencePDFGenerator:
             leftIndent=8,
             fontName=self.font_regular
         ))
+
+        # Header styles for content headers (h2, h3, h4, etc.)
+        # H2 - Main section headers
+        self.styles.add(ParagraphStyle(
+            name='ContentH2',
+            parent=self.styles['Heading2'],
+            fontSize=14,
+            textColor=colors.HexColor('#003366'),
+            spaceAfter=8,
+            spaceBefore=16,
+            alignment=TA_LEFT,
+            fontName=self.font_bold
+        ))
+
+        # H3 - Subsection headers
+        self.styles.add(ParagraphStyle(
+            name='ContentH3',
+            parent=self.styles['Heading3'],
+            fontSize=12,
+            textColor=colors.HexColor('#003366'),
+            spaceAfter=6,
+            spaceBefore=12,
+            alignment=TA_LEFT,
+            fontName=self.font_bold
+        ))
+
+        # H4 - Minor headers
+        self.styles.add(ParagraphStyle(
+            name='ContentH4',
+            parent=self.styles['Heading3'],
+            fontSize=11,
+            textColor=colors.HexColor('#003366'),
+            spaceAfter=5,
+            spaceBefore=10,
+            alignment=TA_LEFT,
+            fontName=self.font_bold
+        ))
         
     def _create_cover_page(self, story: List):
         """Create a cover page for the PDF with border and disclaimer"""
@@ -607,7 +644,7 @@ class ConferencePDFGenerator:
         first_paragraph_added = False
 
         if structured_content:
-            # Use structured content to preserve image positions
+            # Use structured content to preserve image and header positions
             for item in structured_content:
                 if item['type'] == 'text':
                     # Split text into paragraphs
@@ -626,6 +663,31 @@ class ConferencePDFGenerator:
                             else:
                                 para = Paragraph(cleaned_text, self.styles['TalkBody'])
                             story.append(para)
+
+                elif item['type'] == 'header':
+                    # Add header with appropriate style based on level
+                    header_text = item.get('content', '')
+                    header_level = item.get('level', 2)
+
+                    # Skip if header matches the talk title (duplicate)
+                    if header_text.strip().lower() == title.strip().lower():
+                        continue
+
+                    # Map header levels to styles (h1 is reserved for talk title)
+                    # h2 -> ContentH2, h3 -> ContentH3, h4+ -> ContentH4
+                    if header_level <= 2:
+                        style_name = 'ContentH2'
+                    elif header_level == 3:
+                        style_name = 'ContentH3'
+                    else:
+                        style_name = 'ContentH4'
+
+                    cleaned_text = self._clean_text_for_pdf(header_text)
+                    header_para = Paragraph(cleaned_text, self.styles[style_name])
+                    story.append(header_para)
+
+                    # Mark that we've passed the first content (headers come after intro)
+                    first_paragraph_added = True
 
                 elif item['type'] == 'image':
                     # Add the image
