@@ -139,8 +139,8 @@ class ConferencePDFGenerator:
         self.styles.add(ParagraphStyle(
             name='TalkBody',
             parent=self.styles['Normal'],
-            fontSize=10,
-            leading=11,
+            fontSize=11,
+            leading=12,
             alignment=TA_JUSTIFY,
             spaceAfter=5,
             fontName='Times-Roman'
@@ -320,7 +320,7 @@ class ConferencePDFGenerator:
         # Now restore footnote markers with proper formatting
         for marker_id, num in footnote_markers.items():
             # Use ReportLab's super tag for superscript with color
-            formatted_marker = f'<super><font color="#2D83AE" size="7"> {num}</font></super>'
+            formatted_marker = f'<font size="1"> </font><super rise="3"><font color="#2D83AE" size="8">{num}</font></super>'
             text = text.replace(marker_id, formatted_marker)
 
         return text
