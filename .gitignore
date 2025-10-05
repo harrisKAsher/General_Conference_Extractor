@@ -1,0 +1,38 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Generated files
+*.pdf
+*.json
+conference_data_*.json
+*_data.json
+test_output.pdf
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+analyze_pdf.py
+test_scraper.py
+test_pdf.py
+
+# Keep example PDF
+!example/*.pdf
+
