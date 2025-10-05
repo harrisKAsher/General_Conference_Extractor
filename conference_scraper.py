@@ -259,6 +259,12 @@ class ConferenceScraper:
             
     def extract_content_from_html(self, html: str) -> Dict:
         """Extract text and images from HTML content"""
+        # Extract author role/title if present
+        author_role = None
+        role_match = re.search(r'<p[^>]*class="author-role"[^>]*>([^<]+)</p>', html)
+        if role_match:
+            author_role = role_match.group(1).strip()
+
         # First, extract footnotes using regex (more reliable for nested HTML)
         footnotes = []
         footnote_pattern = r'<li[^>]*data-marker="([^"]+)"[^>]*id="([^"]+)"[^>]*>(.*?)</li>'
@@ -307,7 +313,8 @@ class ConferenceScraper:
         return {
             'text': '\n\n'.join(text_parts),
             'structured_content': structured_content,
-            'footnotes': footnotes
+            'footnotes': footnotes,
+            'author_role': author_role
         }
         
     def scrape_all_talks(self) -> List[Dict]:
@@ -341,6 +348,7 @@ class ConferenceScraper:
                 talk_info['content'] = content_data['text']
                 talk_info['structured_content'] = content_data['structured_content']
                 talk_info['footnotes'] = content_data.get('footnotes', [])
+                talk_info['author_role'] = content_data.get('author_role')
                 talk_info['full_data'] = talk_data
 
                 # Count images and footnotes

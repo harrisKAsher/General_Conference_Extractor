@@ -36,7 +36,34 @@ class ConferencePDFGenerator:
         self.styles = getSampleStyleSheet()
         self._setup_custom_styles()
         self.image_cache = {}  # Cache downloaded images
-        
+        self.conference_date = self._extract_conference_date()
+
+    def _extract_conference_date(self) -> str:
+        """Extract conference date from conference title (e.g., 'April 2025')"""
+        conference_title = self.conference_data.get('conference_title', '')
+
+        # Try to extract month and year from title
+        # Expected format: "April 2025 General Conference" or similar
+        match = re.search(r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})', conference_title)
+        if match:
+            return f"{match.group(1)} {match.group(2)}"
+
+        # Fallback: try to get from first talk URL if available
+        talks = self.conference_data.get('talks', [])
+        if talks and 'url' in talks[0]:
+            url = talks[0]['url']
+            # URL format: .../general-conference/2025/04/...
+            match = re.search(r'/general-conference/(\d{4})/(\d{2})/', url)
+            if match:
+                year = match.group(1)
+                month_num = int(match.group(2))
+                months = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+                         'July', 'August', 'September', 'October', 'November', 'December']
+                if 1 <= month_num <= 12:
+                    return f"{months[month_num]} {year}"
+
+        return ""
+
     def _setup_custom_styles(self):
         """Setup custom paragraph styles for the PDF"""
         
@@ -51,26 +78,60 @@ class ConferencePDFGenerator:
             fontName='Helvetica-Bold'
         ))
         
-        # Talk title style
+        # Talk title style - larger and bolder
         self.styles.add(ParagraphStyle(
             name='TalkTitle',
-            parent=self.styles['Heading2'],
-            fontSize=16,
+            parent=self.styles['Heading1'],
+            fontSize=20,
             textColor=colors.HexColor('#003366'),
-            spaceAfter=6,
-            spaceBefore=12,
-            alignment=TA_CENTER,
+            spaceAfter=8,
+            spaceBefore=0,
+            alignment=TA_LEFT,
             fontName='Helvetica-Bold'
         ))
-        
-        # Speaker name style
+
+        # Speaker name style - with "By" prefix
         self.styles.add(ParagraphStyle(
             name='Speaker',
             parent=self.styles['Normal'],
-            fontSize=12,
-            textColor=colors.HexColor('#666666'),
-            spaceAfter=20,
-            alignment=TA_CENTER,
+            fontSize=11,
+            textColor=colors.black,
+            spaceAfter=2,
+            alignment=TA_LEFT,
+            fontName='Helvetica-Bold'
+        ))
+
+        # Author role/title style
+        self.styles.add(ParagraphStyle(
+            name='AuthorRole',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            textColor=colors.black,
+            spaceAfter=2,
+            alignment=TA_LEFT,
+            fontName='Helvetica-Oblique'
+        ))
+
+        # Conference date style
+        self.styles.add(ParagraphStyle(
+            name='ConferenceDate',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            textColor=colors.HexColor('#5A7FA5'),
+            spaceAfter=12,
+            alignment=TA_LEFT,
+            fontName='Helvetica'
+        ))
+
+        # Highlight/Lead paragraph style - first paragraph of talk
+        self.styles.add(ParagraphStyle(
+            name='TalkHighlight',
+            parent=self.styles['Normal'],
+            fontSize=13,
+            leading=19,
+            textColor=colors.HexColor('#334E68'),
+            alignment=TA_JUSTIFY,
+            spaceAfter=14,
             fontName='Helvetica-Oblique'
         ))
         
@@ -348,6 +409,49 @@ class ConferencePDFGenerator:
             print(f"    Warning: Failed to process image: {e}")
             return None
         
+    def _should_skip_paragraph(self, para_text: str, title: str, speaker: str) -> bool:
+        """Check if a paragraph should be skipped (duplicate title/speaker info)"""
+        para_clean = para_text.strip().lower()
+        title_clean = title.strip().lower()
+        speaker_clean = speaker.strip().lower()
+
+        # Skip if paragraph matches title exactly
+        if para_clean == title_clean:
+            return True
+
+        # Skip if paragraph matches speaker name (with or without "By")
+        if para_clean == speaker_clean or para_clean == f"by {speaker_clean}":
+            return True
+
+        # Skip if paragraph starts with "By" and contains speaker name
+        if para_clean.startswith("by ") and speaker_clean in para_clean:
+            return True
+
+        # Skip common role/title lines that appear after speaker name
+        role_keywords = [
+            'president of the church',
+            'first counselor in the first presidency',
+            'second counselor in the first presidency',
+            'acting president of the quorum of the twelve apostles',
+            'president of the quorum of the twelve apostles',
+            'of the quorum of the twelve apostles',
+            'first counselor in the',
+            'second counselor in the',
+            'presidency of the seventy',
+            'general authority seventy',
+            'young women general president',
+            'young men general president',
+            'primary general president',
+            'relief society general president',
+            'sunday school general president'
+        ]
+
+        for keyword in role_keywords:
+            if keyword in para_clean:
+                return True
+
+        return False
+
     def _add_talk_to_story(self, story: List, talk: Dict, talk_number: int):
         """Add a single talk to the PDF story"""
 
@@ -356,15 +460,30 @@ class ConferencePDFGenerator:
         title_para = Paragraph(self._clean_text_for_pdf(title), self.styles['TalkTitle'])
         story.append(title_para)
 
-        # Speaker name
+        # Speaker name with "By" prefix
         speaker = talk.get('speaker', 'Unknown')
-        speaker_para = Paragraph(self._clean_text_for_pdf(speaker), self.styles['Speaker'])
+        speaker_text = f"By {speaker}"
+        speaker_para = Paragraph(self._clean_text_for_pdf(speaker_text), self.styles['Speaker'])
         story.append(speaker_para)
 
-        story.append(Spacer(1, 0.2*inch))
+        # Author role/title (if available)
+        author_role = talk.get('author_role')
+        if author_role:
+            role_para = Paragraph(self._clean_text_for_pdf(author_role), self.styles['AuthorRole'])
+            story.append(role_para)
+
+        # Conference date
+        if self.conference_date:
+            date_para = Paragraph(self.conference_date, self.styles['ConferenceDate'])
+            story.append(date_para)
+
+        story.append(Spacer(1, 0.15*inch))
 
         # Check if we have structured content (with images)
         structured_content = talk.get('structured_content', [])
+
+        # Track if we've added the first paragraph (for highlight styling)
+        first_paragraph_added = False
 
         if structured_content:
             # Use structured content to preserve image positions
@@ -374,8 +493,17 @@ class ConferencePDFGenerator:
                     paragraphs = self._split_into_paragraphs(item['content'])
                     for para_text in paragraphs:
                         if para_text:
+                            # Skip duplicate title/speaker paragraphs
+                            if self._should_skip_paragraph(para_text, title, speaker):
+                                continue
+
                             cleaned_text = self._clean_text_for_pdf(para_text)
-                            para = Paragraph(cleaned_text, self.styles['TalkBody'])
+                            # Use highlight style for first paragraph, regular style for rest
+                            if not first_paragraph_added:
+                                para = Paragraph(cleaned_text, self.styles['TalkHighlight'])
+                                first_paragraph_added = True
+                            else:
+                                para = Paragraph(cleaned_text, self.styles['TalkBody'])
                             story.append(para)
 
                 elif item['type'] == 'image':
@@ -407,10 +535,20 @@ class ConferencePDFGenerator:
             content = talk.get('content', '')
             paragraphs = self._split_into_paragraphs(content)
 
+            first_content_para = False
             for para_text in paragraphs:
                 if para_text:
+                    # Skip duplicate title/speaker paragraphs
+                    if self._should_skip_paragraph(para_text, title, speaker):
+                        continue
+
                     cleaned_text = self._clean_text_for_pdf(para_text)
-                    para = Paragraph(cleaned_text, self.styles['TalkBody'])
+                    # Use highlight style for first paragraph, regular style for rest
+                    if not first_content_para:
+                        para = Paragraph(cleaned_text, self.styles['TalkHighlight'])
+                        first_content_para = True
+                    else:
+                        para = Paragraph(cleaned_text, self.styles['TalkBody'])
                     story.append(para)
 
         # Add footnotes if present
