@@ -9,9 +9,9 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 
-A2 = (612,792) # A2 size in points (8.5x11 inches) US Letter
+A4 = (612,792) # A4 size in points (8.5x11 inches) US Letter
 B5 = (498, 708) # B5 paper, I found this to work great digitally
-PAGE_SIZE = A2
+PAGE_SIZE = A4
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image, Frame, PageTemplate, Flowable
 from reportlab.lib import colors
