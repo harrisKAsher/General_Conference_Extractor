@@ -9,10 +9,9 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 
-# Define B5 size in pixels (498 × 708px)
-# In ReportLab, we need to convert pixels to points (1 point = 1/72 inch)
-# Assuming 72 DPI: 498px = 498 points, 708px = 708 points
-B5_CUSTOM = (498, 708)
+A2 = (612,792) # A2 size in points (8.5x11 inches) US Letter
+B5 = (498, 708) # B5 paper, I found this to work great digitally
+PAGE_SIZE = A2
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image, Frame, PageTemplate, Flowable
 from reportlab.lib import colors
@@ -768,7 +767,7 @@ class ConferencePDFGenerator:
 
         # Draw border with some margin from page edges
         margin = 0.5 * inch
-        page_width, page_height = B5_CUSTOM
+        page_width, page_height = PAGE_SIZE
 
         canvas.rect(
             margin,
@@ -798,7 +797,7 @@ class ConferencePDFGenerator:
         # Create the PDF document with custom page templates
         doc = SimpleDocTemplate(
             output_filename,
-            pagesize=B5_CUSTOM,
+            pagesize=PAGE_SIZE,
             rightMargin=0.75*inch,
             leftMargin=0.75*inch,
             topMargin=0.75*inch,

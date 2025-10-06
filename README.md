@@ -2,16 +2,19 @@
 
 A Python web scraping tool that extracts talks from Church of Jesus Christ General Conference pages and generates formatted PDF documents.
 
+NOTE: This tool was AI Generated and not reflective of my skills. I am a JavaScript developer not a Python developer. I am making this public in case someone else would like a PDF of confrence in a nice simple format like I do.
+
 ## Features
 
 - Scrapes conference talks from churchofjesuschrist.org
 - Extracts speaker names, talk titles, and full content
-- **Includes images from talks in the PDF** (portraits, photos, artwork, etc.)
+- **Includes images from talks in the PDF** (photos, artwork, etc.)
 - **PDF Bookmarks/Outline** - Navigate easily between sessions and talks using the PDF reader's sidebar
 - Generates professionally formatted PDF documents
 - Includes cover page and session dividers
 - Reusable for different conference years and sessions
 - Saves intermediate JSON data for debugging
+- Can adjust page size
 
 ## Installation
 
